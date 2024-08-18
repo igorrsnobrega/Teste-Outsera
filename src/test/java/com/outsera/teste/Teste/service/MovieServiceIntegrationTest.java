@@ -1,20 +1,21 @@
 package com.outsera.teste.Teste.service;
 
+import com.outsera.teste.Teste.dto.FileDTO;
 import com.outsera.teste.Teste.dto.IntervalDTO;
 import com.outsera.teste.Teste.dto.ProducerIntervalDTO;
 import com.outsera.teste.Teste.exception.InvalidFileFormatException;
-import com.outsera.teste.Teste.model.FileUploadHistory;
+import com.outsera.teste.Teste.model.File;
 import com.outsera.teste.Teste.model.Movie;
-import com.outsera.teste.Teste.repository.FileUploadHistoryRepository;
+import com.outsera.teste.Teste.repository.FileRepository;
 import com.outsera.teste.Teste.repository.MovieRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Base64;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -30,12 +31,12 @@ class MovieServiceIntegrationTest {
     private MovieRepository movieRepository;
 
     @Autowired
-    private FileUploadHistoryRepository fileUploadHistoryRepository;
+    private FileRepository fileRepository;
 
     @BeforeEach
     public void setup(){
         movieRepository.deleteAll();
-        fileUploadHistoryRepository.deleteAll();
+        fileRepository.deleteAll();
     }
 
     @Test
@@ -75,14 +76,18 @@ class MovieServiceIntegrationTest {
                 "1980;Can't Stop the Music;Associated Film Distribution;Allan Carr;yes;\n" +
                 "1980;Cruising;Lorimar Productions, United Artists;Jerry Weintraub;";
 
-        MockMultipartFile file = new MockMultipartFile("file", "movies.csv", "text/csv", content.getBytes());
+        String base64Content = Base64.getEncoder().encodeToString(content.getBytes());
 
-        movieService.processCSVFile(file);
+        FileDTO fileDTO = new FileDTO();
+        fileDTO.setFileName("movies.csv");
+        fileDTO.setFileContent(base64Content);
+
+        movieService.processCSVFile(fileDTO);
 
         List<Movie> movies = movieRepository.findAll();
         assertEquals(2, movies.size());
 
-        FileUploadHistory history = fileUploadHistoryRepository.findByFileName("movies.csv");
+        File history = fileRepository.findByFileName("movies.csv");
         assertNotNull(history);
         assertTrue(history.isSuccessful());
     }
@@ -92,10 +97,14 @@ class MovieServiceIntegrationTest {
         String content = "1980;Can't Stop the Music;Associated Film Distribution;Allan Carr;yes;\n" +
                 "Invalid Line";
 
-        MockMultipartFile file = new MockMultipartFile("file", "movies.csv", "text/csv", content.getBytes());
+        String base64Content = Base64.getEncoder().encodeToString(content.getBytes());
+
+        FileDTO fileDTO = new FileDTO();
+        fileDTO.setFileName("movies.csv");
+        fileDTO.setFileContent(base64Content);
 
         InvalidFileFormatException exception = assertThrows(InvalidFileFormatException.class, () -> {
-            movieService.processCSVFile(file);
+            movieService.processCSVFile(fileDTO);
         });
 
         assertEquals("Invalid number of fields in line: Invalid Line", exception.getMessage());
@@ -103,7 +112,7 @@ class MovieServiceIntegrationTest {
         List<Movie> movies = movieRepository.findAll();
         assertEquals(0, movies.size());
 
-        FileUploadHistory history = fileUploadHistoryRepository.findByFileName("movies.csv");
+        File history = fileRepository.findByFileName("movies.csv");
         assertNotNull(history);
         assertFalse(history.isSuccessful());
     }

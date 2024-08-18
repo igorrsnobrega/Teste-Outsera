@@ -1,7 +1,7 @@
 package com.outsera.teste.Teste.resource;
 
-import com.outsera.teste.Teste.dto.FileUploadHistoryDTO;
-import com.outsera.teste.Teste.service.FileUploadHistoryService;
+import com.outsera.teste.Teste.dto.FileDTO;
+import com.outsera.teste.Teste.service.FileService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -13,15 +13,15 @@ import java.util.List;
 @RequestMapping("/api/files")
 public class FileResource {
 
-    final private FileUploadHistoryService fileUploadHistoryService;
+    final private FileService fileService;
 
-    public FileResource(FileUploadHistoryService fileUploadHistoryService){
-        this.fileUploadHistoryService = fileUploadHistoryService;
+    public FileResource(FileService fileService){
+        this.fileService = fileService;
     }
 
     @GetMapping()
-    public ResponseEntity<List<FileUploadHistoryDTO>> getAllFileUploads() {
-        List<FileUploadHistoryDTO> uploads = fileUploadHistoryService.getAllFileUploads();
+    public ResponseEntity<List<FileDTO>> getAllFileUploads() {
+        List<FileDTO> uploads = fileService.getAllFileUploads();
         return ResponseEntity.ok(uploads);
     }
 }

@@ -1,5 +1,6 @@
 package com.outsera.teste.Teste.service;
 
+import com.outsera.teste.Teste.dto.FileDTO;
 import com.outsera.teste.Teste.dto.IntervalDTO;
 import com.outsera.teste.Teste.dto.MovieDTO;
 import com.outsera.teste.Teste.dto.ProducerIntervalDTO;
@@ -9,11 +10,8 @@ import com.outsera.teste.Teste.mapper.MovieMapper;
 import com.outsera.teste.Teste.model.Movie;
 import com.outsera.teste.Teste.repository.MovieRepository;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -21,46 +19,50 @@ import java.util.stream.Collectors;
 public class MovieService {
 
     final private MovieRepository movieRepository;
-    final private FileUploadHistoryService fileUploadHistoryService;
+    final private FileService fileService;
     final private MovieMapper movieMapper;
 
     public MovieService(
             MovieRepository movieRepository,
-            FileUploadHistoryService fileUploadHistoryService,
+            FileService fileService,
             MovieMapper movieMapper){
         this.movieRepository = movieRepository;
-        this.fileUploadHistoryService = fileUploadHistoryService;
+        this.fileService = fileService;
         this.movieMapper = movieMapper;
     }
 
-    public void processCSVFile(MultipartFile file) {
-        String fileName = file.getOriginalFilename();
-        if (fileName == null || !fileName.toLowerCase().endsWith(".csv")) {
-            saveAndThrow(fileName, "The file is not a CSV.");
+    public void processCSVFile(FileDTO fileDTO) {
+        String fileName = fileDTO.getFileName();
+
+        if (!fileName.toLowerCase().endsWith(".csv")) {
+            saveAndThrow(fileName, fileDTO.getFileContent(), "The file is not a CSV.");
         }
 
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
+        try {
+            byte[] decodedBytes = Base64.getDecoder().decode(fileDTO.getFileContent());
+            BufferedReader reader = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(decodedBytes)));
+
             String line;
             reader.readLine(); // escapa a primeira linha
 
             while ((line = reader.readLine()) != null) {
                 String[] fields = line.split(";");
                 if (fields.length < 4) {
-                    saveAndThrow(fileName, "Invalid number of fields in line: " + line);
+                    saveAndThrow(fileName, fileDTO.getFileContent(),"Invalid number of fields in line: " + line);
                 }
 
                 try {
                     Movie movie = parseMovie(fields);
                     movieRepository.save(movie);
                 } catch (NumberFormatException e) {
-                    saveAndThrow(fileName, "Invalid year format in line: " + line);
+                    saveAndThrow(fileName, fileDTO.getFileContent(), "Invalid year format in line: " + line);
                 } catch (Exception e) {
                     saveAndThrow(fileName, "Error processing line: " + line, e);
                 }
             }
-            fileUploadHistoryService.saveFileUploadHistory(fileName, true, null);
+            fileService.saveFileHistory(fileName, fileDTO.getFileContent(),true, null);
         } catch (IOException e) {
-            saveAndThrow(fileName, "Error reading file", e);
+            saveAndThrow(fileName, fileDTO.getFileContent(), e);
         }
     }
 
@@ -74,14 +76,14 @@ public class MovieService {
         return movie;
     }
 
-    private void saveAndThrow(String fileName, String message) {
-        fileUploadHistoryService.saveFileUploadHistory(fileName, false, message);
+    private void saveAndThrow(String fileName, String content, String message) {
+        fileService.saveFileHistory(fileName, content,false, message);
         throw new InvalidFileFormatException(message);
     }
 
-    private void saveAndThrow(String fileName, String message, Exception e) {
-        fileUploadHistoryService.saveFileUploadHistory(fileName, false, message);
-        throw new FileProcessingException(message, e);
+    private void saveAndThrow(String fileName, String content, Exception e) {
+        fileService.saveFileHistory(fileName, content,false, "Error reading file");
+        throw new FileProcessingException("Error reading file", e);
     }
 
     public ProducerIntervalDTO getProducerWithInterval(int inicio, int fim) {

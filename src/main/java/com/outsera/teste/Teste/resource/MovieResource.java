@@ -1,12 +1,14 @@
 package com.outsera.teste.Teste.resource;
 
+import com.outsera.teste.Teste.dto.FileDTO;
 import com.outsera.teste.Teste.dto.MovieDTO;
 import com.outsera.teste.Teste.dto.ProducerIntervalDTO;
+import com.outsera.teste.Teste.dto.ResponseDTO;
 import com.outsera.teste.Teste.service.MovieService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Year;
 import java.util.List;
@@ -23,9 +25,10 @@ public class MovieResource {
     }
 
     @PostMapping("/upload")
-    public @ResponseBody ResponseEntity<String> uploadCSV(@RequestParam("file") MultipartFile file) {
-        movieService.processCSVFile(file);
-        return new ResponseEntity<>("File has been processed successfully.", HttpStatus.CREATED);
+    public @ResponseBody ResponseEntity<ResponseDTO> uploadCSVBase64(@Valid @RequestBody FileDTO fileDTO) {
+        movieService.processCSVFile(fileDTO);
+        ResponseDTO response = new ResponseDTO("File has been processed successfully.");
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @GetMapping()
@@ -34,8 +37,9 @@ public class MovieResource {
     }
 
     @GetMapping("/count")
-    public @ResponseBody ResponseEntity<Integer> getCount(){
-        return new ResponseEntity<>(movieService.getAll().size(), HttpStatus.OK);
+    public @ResponseBody ResponseEntity<ResponseDTO> getCount(){
+        ResponseDTO response = new ResponseDTO(String.valueOf(movieService.getAll().size()));
+        return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
     @GetMapping("/producers-interval")
