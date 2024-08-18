@@ -1,14 +1,12 @@
 package com.outsera.teste.Teste.service;
 
-import com.outsera.teste.Teste.dto.FileUploadHistoryDTO;
 import com.outsera.teste.Teste.dto.IntervalDTO;
+import com.outsera.teste.Teste.dto.MovieDTO;
 import com.outsera.teste.Teste.dto.ProducerIntervalDTO;
 import com.outsera.teste.Teste.exception.FileProcessingException;
 import com.outsera.teste.Teste.exception.InvalidFileFormatException;
-import com.outsera.teste.Teste.mapper.FileUploadHistoryMapper;
-import com.outsera.teste.Teste.model.FileUploadHistory;
+import com.outsera.teste.Teste.mapper.MovieMapper;
 import com.outsera.teste.Teste.model.Movie;
-import com.outsera.teste.Teste.repository.FileUploadHistoryRepository;
 import com.outsera.teste.Teste.repository.MovieRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -16,12 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.time.LocalDateTime;
-import java.time.Year;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,84 +22,115 @@ public class MovieService {
 
     final private MovieRepository movieRepository;
     final private FileUploadHistoryService fileUploadHistoryService;
+    final private MovieMapper movieMapper;
 
     public MovieService(
             MovieRepository movieRepository,
-            FileUploadHistoryService fileUploadHistoryService){
+            FileUploadHistoryService fileUploadHistoryService,
+            MovieMapper movieMapper){
         this.movieRepository = movieRepository;
         this.fileUploadHistoryService = fileUploadHistoryService;
+        this.movieMapper = movieMapper;
     }
 
     public void processCSVFile(MultipartFile file) {
         String fileName = file.getOriginalFilename();
         if (fileName == null || !fileName.toLowerCase().endsWith(".csv")) {
-            fileUploadHistoryService.saveFileUploadHistory(fileName, false, "The file is not a CSV.");
-            throw new InvalidFileFormatException("The file is not a CSV.");
+            saveAndThrow(fileName, "The file is not a CSV.");
         }
 
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
-            String line = reader.readLine();
+            String line;
+            reader.readLine(); // escapa a primeira linha
+
             while ((line = reader.readLine()) != null) {
                 String[] fields = line.split(";");
                 if (fields.length < 4) {
-                    fileUploadHistoryService.saveFileUploadHistory(fileName, false, "Invalid number of fields in line: " + line);
-                    throw new InvalidFileFormatException("Invalid number of fields in line: " + line);
+                    saveAndThrow(fileName, "Invalid number of fields in line: " + line);
                 }
-                try {
-                    Movie movie = new Movie();
-                    movie.setMovieYear(Integer.parseInt(fields[0].trim()));
-                    movie.setTitle(fields[1].trim());
-                    movie.setStudios(fields[2].trim());
-                    movie.setProducers(fields[3].trim());
-                    movie.setWinner(fields.length == 5 && "yes".equalsIgnoreCase(fields[4].trim()));
 
+                try {
+                    Movie movie = parseMovie(fields);
                     movieRepository.save(movie);
                 } catch (NumberFormatException e) {
-                    fileUploadHistoryService.saveFileUploadHistory(fileName, false, "Invalid year format in line: " + line);
-                    throw new InvalidFileFormatException("Invalid year format in line: " + line);
+                    saveAndThrow(fileName, "Invalid year format in line: " + line);
                 } catch (Exception e) {
-                    fileUploadHistoryService.saveFileUploadHistory(fileName, false, "Error processing line: " + line);
-                    throw new FileProcessingException("Error processing line: " + line, e);
+                    saveAndThrow(fileName, "Error processing line: " + line, e);
                 }
             }
             fileUploadHistoryService.saveFileUploadHistory(fileName, true, null);
         } catch (IOException e) {
-            fileUploadHistoryService.saveFileUploadHistory(fileName, false, "Error reading file");
-            throw new FileProcessingException("Error reading file", e);
+            saveAndThrow(fileName, "Error reading file", e);
         }
     }
 
-    public ProducerIntervalDTO getProducerWithInterval(int inicio, int fim) {
+    private Movie parseMovie(String[] fields) {
+        Movie movie = new Movie();
+        movie.setMovieYear(Integer.parseInt(fields[0].trim()));
+        movie.setTitle(fields[1].trim());
+        movie.setStudios(fields[2].trim());
+        movie.setProducers(fields[3].trim());
+        movie.setWinner(fields.length == 5 && "yes".equalsIgnoreCase(fields[4].trim()));
+        return movie;
+    }
 
+    private void saveAndThrow(String fileName, String message) {
+        fileUploadHistoryService.saveFileUploadHistory(fileName, false, message);
+        throw new InvalidFileFormatException(message);
+    }
+
+    private void saveAndThrow(String fileName, String message, Exception e) {
+        fileUploadHistoryService.saveFileUploadHistory(fileName, false, message);
+        throw new FileProcessingException(message, e);
+    }
+
+    public ProducerIntervalDTO getProducerWithInterval(int inicio, int fim) {
         List<String> producers = movieRepository.findDistinctProducers();
+        Map<String, List<Movie>> producerMoviesMap = new HashMap<>();
+
+        for (String producer : producers) {
+            String[] individualProducers = producer.split(",| and ");
+            for (String individualProducer : individualProducers) {
+                individualProducer = individualProducer.trim();
+                if (!producerMoviesMap.containsKey(individualProducer)) {
+                    producerMoviesMap.put(individualProducer, new ArrayList<>());
+                }
+                producerMoviesMap.get(individualProducer).addAll(movieRepository.findByProducersAndWinnerTrueOrderByMovieYearAsc(producer));
+            }
+        }
+
         List<IntervalDTO> minIntervals = new ArrayList<>();
         List<IntervalDTO> maxIntervals = new ArrayList<>();
 
         int smallestInterval = Integer.MAX_VALUE;
         int largestInterval = Integer.MIN_VALUE;
 
-        for (String producer : producers) {
-            List<Movie> movies = movieRepository.findByProducersAndWinnerTrueOrderByMovieYearAsc(producer);
+        for (Map.Entry<String, List<Movie>> entry : producerMoviesMap.entrySet()) {
+            String producer = entry.getKey();
+            List<Movie> movies = entry.getValue();
+            movies.sort(Comparator.comparingInt(Movie::getMovieYear));
 
             for (int i = 0; i < movies.size() - 1; i++) {
-                int year = movies.get(i).getMovieYear();
-                if (year >= inicio && year <= fim) {
-                    int interval = movies.get(i + 1).getMovieYear() - year;
+                int year1 = movies.get(i).getMovieYear();
+                int year2 = movies.get(i + 1).getMovieYear();
+
+                if (year1 >= inicio && year1 <= fim && year2 >= inicio && year2 <= fim) {
+                    int interval = year2 - year1;
 
                     if (interval < smallestInterval) {
                         smallestInterval = interval;
                         minIntervals.clear();
-                        minIntervals.add(new IntervalDTO(producer, interval, year, movies.get(i + 1).getMovieYear()));
+                        minIntervals.add(new IntervalDTO(producer, interval, year1, year2));
                     } else if (interval == smallestInterval) {
-                        minIntervals.add(new IntervalDTO(producer, interval, year, movies.get(i + 1).getMovieYear()));
+                        minIntervals.add(new IntervalDTO(producer, interval, year1, year2));
                     }
 
                     if (interval > largestInterval) {
                         largestInterval = interval;
                         maxIntervals.clear();
-                        maxIntervals.add(new IntervalDTO(producer, interval, year, movies.get(i + 1).getMovieYear()));
+                        maxIntervals.add(new IntervalDTO(producer, interval, year1, year2));
                     } else if (interval == largestInterval) {
-                        maxIntervals.add(new IntervalDTO(producer, interval, year, movies.get(i + 1).getMovieYear()));
+                        maxIntervals.add(new IntervalDTO(producer, interval, year1, year2));
                     }
                 }
             }
@@ -115,4 +139,10 @@ public class MovieService {
         return new ProducerIntervalDTO(minIntervals, maxIntervals);
     }
 
+    public List<MovieDTO> getAll(){
+        return movieRepository.findAll()
+                .stream()
+                .map(movieMapper::toDTO)
+                .collect(Collectors.toList());
+    }
 }

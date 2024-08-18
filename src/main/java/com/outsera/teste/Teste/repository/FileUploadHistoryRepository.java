@@ -6,4 +6,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface FileUploadHistoryRepository extends JpaRepository<FileUploadHistory, Long> {
+
+    FileUploadHistory findByFileName(String fileName);
 }

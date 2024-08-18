@@ -4,7 +4,6 @@ import com.outsera.teste.Teste.dto.FileUploadHistoryDTO;
 import com.outsera.teste.Teste.mapper.FileUploadHistoryMapper;
 import com.outsera.teste.Teste.model.FileUploadHistory;
 import com.outsera.teste.Teste.repository.FileUploadHistoryRepository;
-import com.outsera.teste.Teste.repository.MovieRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;

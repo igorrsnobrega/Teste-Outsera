@@ -1,15 +1,13 @@
 package com.outsera.teste.Teste.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @Entity
 @Table(name = "MOVIE")
+@NoArgsConstructor
 public class Movie {
 
     @Id
@@ -21,4 +19,12 @@ public class Movie {
     private String studios;
     private String producers;
     private boolean winner;
+
+    public Movie(int movieYear, String title, String studios, String producers, boolean winner) {
+        this.movieYear = movieYear;
+        this.title = title;
+        this.studios = studios;
+        this.producers = producers;
+        this.winner = winner;
+    }
 }

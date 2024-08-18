@@ -1,17 +1,16 @@
 package com.outsera.teste.Teste.resource;
 
-import com.outsera.teste.Teste.dto.FileUploadHistoryDTO;
+import com.outsera.teste.Teste.dto.MovieDTO;
 import com.outsera.teste.Teste.dto.ProducerIntervalDTO;
-import com.outsera.teste.Teste.model.FileUploadHistory;
 import com.outsera.teste.Teste.service.MovieService;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Year;
-import java.util.*;
+import java.util.List;
+import java.util.Objects;
 
 @RestController
 @RequestMapping("/api/movies")
@@ -29,8 +28,18 @@ public class MovieResource {
         return new ResponseEntity<>("File has been processed successfully.", HttpStatus.CREATED);
     }
 
+    @GetMapping()
+    public @ResponseBody ResponseEntity<List<MovieDTO>> getAll(){
+        return new ResponseEntity<>(movieService.getAll(), HttpStatus.OK);
+    }
+
+    @GetMapping("/count")
+    public @ResponseBody ResponseEntity<Integer> getCount(){
+        return new ResponseEntity<>(movieService.getAll().size(), HttpStatus.OK);
+    }
+
     @GetMapping("/producers-interval")
-    public ProducerIntervalDTO getProducersInterval(
+    public @ResponseBody ProducerIntervalDTO getProducersInterval(
             @RequestParam(value = "inicio") Integer inicio,
             @RequestParam(value = "fim", required = false) Integer fim
     ) {
