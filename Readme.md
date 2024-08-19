@@ -1,5 +1,3 @@
-Aqui está o README.md atualizado para o seu projeto:
-
 ---
 
 # Projeto de Gerenciamento de Filmes
